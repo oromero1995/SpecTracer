@@ -1712,7 +1712,7 @@ def biasDarkCalibration ():
 			for filename in filenames:
 				biases_arr = np.append(biases_arr,[os.path.join(dirname, filename)])
 
-	temp_data = fits.getdata(biases_arr[0])
+	temp_data = fits.getdata(biases_arr[0],ignore_missing_end=True)
 
 	bias_data = np.ndarray(shape=(len(biases_arr),len(temp_data), len(temp_data[0])))
 	
@@ -1744,7 +1744,7 @@ def biasDarkCalibration ():
 
 		i = 0	
 		while i < len(darks_arr):
-			dark_data[i] = fits.getdata(darks_arr[i])-meanOverScan_val-medianBias_val
+			dark_data[i] = fits.getdata(darks_arr[i],ignore_missing_end=True)-meanOverScan_val-medianBias_val
 			dark_data[:,0:left] = ma.masked
 			dark_data[:,right:length]=ma.masked
 			i=i+1
