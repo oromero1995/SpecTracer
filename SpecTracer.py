@@ -1,4 +1,4 @@
-#SpecTracer is a program designed to reduce echelle spectra. 
+#SpecTracer is a program desinged to reduce echelle spectra. 
 #It is able to trace ordersusing manual input from the user.
 #It uses bias and overscan to eliminate sources of noise inherent to the detector
 #It uses dark files to remove stray light from the detector.
@@ -1705,14 +1705,13 @@ def biasDarkCalibration ():
 
 	message = "Select the folder containing the bias files"
 	folderCreation(False, True, False, False, False, message)
-	
-	biases_arr = np.array([])
-	for dirname, dirnames, filenames in os.walk('.'):
-		if os.path.abspath(dirname) == os.path.abspath(bias_dir):
-			for filename in filenames:
-				biases_arr = np.append(biases_arr,[os.path.join(dirname, filename)])
 
-	temp_data = fits.getdata(biases_arr[0],ignore_missing_end=True)
+	biases_arr = np.array([])
+	for root, dirs, filenames in os.walk(bias_dir):
+		for filename in filenames:
+			biases_arr = np.append(biases_arr,[os.path.join(bias_dir, filename)])
+
+	temp_data = fits.getdata(biases_arr[0])
 
 	bias_data = np.ndarray(shape=(len(biases_arr),len(temp_data), len(temp_data[0])))
 	
@@ -1733,10 +1732,9 @@ def biasDarkCalibration ():
 		folderCreation(False, False, True, False, False, message)
 
 		darks_arr = np.array([])
-		for dirname, dirnames, filenames in os.walk('.'):
-			if os.path.abspath(dirname) == os.path.abspath(dark_dir):
-				for filename in filenames:
-					darks_arr = np.append(darks_arr,[os.path.join(dirname, filename)])
+		for root, dirnames, filenames in os.walk(dark_dir):
+			for filename in filenames:
+				darks_arr = np.append(darks_arr,[os.path.join(dark_dir, filename)])
 
 		temp_data = fits.getdata(darks_arr[0])
 		dark_data = np.ndarray(shape=(len(darks_arr),len(temp_data), len(temp_data[0])))
@@ -1744,7 +1742,7 @@ def biasDarkCalibration ():
 
 		i = 0	
 		while i < len(darks_arr):
-			dark_data[i] = fits.getdata(darks_arr[i],ignore_missing_end=True)-meanOverScan_val-medianBias_val
+			dark_data[i] = fits.getdata(darks_arr[i])-meanOverScan_val-medianBias_val
 			dark_data[:,0:left] = ma.masked
 			dark_data[:,right:length]=ma.masked
 			i=i+1
