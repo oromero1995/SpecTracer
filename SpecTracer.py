@@ -1709,16 +1709,17 @@ def biasDarkCalibration ():
 	biases_arr = np.array([])
 	for root, dirs, filenames in os.walk(bias_dir):
 		for filename in filenames:
-			biases_arr = np.append(biases_arr,[os.path.join(bias_dir, filename)])
+			if filename.endswith('.fit') or filename.endswith('.fits'):
+				biases_arr = np.append(biases_arr,[os.path.join(bias_dir, filename)])
 
-	temp_data = fits.getdata(biases_arr[0], ignore_missing_end=True)
+	temp_data = fits.getdata(biases_arr[0])
 
 	bias_data = np.ndarray(shape=(len(biases_arr),len(temp_data), len(temp_data[0])))
 	
 
 	i = 0	
 	while i < len(biases_arr):
-		bias_data[i] = fits.getdata(biases_arr[i],ignore_missing_end=True)-meanOverScan_val
+		bias_data[i] = fits.getdata(biases_arr[i])-meanOverScan_val
 		bias_data[:,0:left] = ma.masked
 		bias_data[:,right:length]=ma.masked
 
@@ -1734,15 +1735,16 @@ def biasDarkCalibration ():
 		darks_arr = np.array([])
 		for root, dirnames, filenames in os.walk(dark_dir):
 			for filename in filenames:
-				darks_arr = np.append(darks_arr,[os.path.join(dark_dir, filename)])
+				if filename.endswith('.fit') or filename.endswith('.fits'):
+					darks_arr = np.append(darks_arr,[os.path.join(dark_dir, filename)])
 
-		temp_data = fits.getdata(darks_arr[0],ignore_missing_end=True)
+		temp_data = fits.getdata(darks_arr[0])
 		dark_data = np.ndarray(shape=(len(darks_arr),len(temp_data), len(temp_data[0])))
 	
 
 		i = 0	
 		while i < len(darks_arr):
-			dark_data[i] = fits.getdata(darks_arr[i],ignore_missing_end=True)-meanOverScan_val-medianBias_val
+			dark_data[i] = fits.getdata(darks_arr[i])-meanOverScan_val-medianBias_val
 			dark_data[:,0:left] = ma.masked
 			dark_data[:,right:length]=ma.masked
 			i=i+1
