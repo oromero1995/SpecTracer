@@ -722,9 +722,9 @@ def updateOrderPlot ():
 	global maximum_left, maximum_right, maximum_vertex, fig19, fig20, ax, ax20, columns, corrector_left, corrector_right
 	global points_right, points_left, points_vertex
 
-	points_left = ax[0].scatter(maximum_left[corrector_left::], columns[0,maximum_left[corrector_left::]],
-									color=['blue']*len(maximum_left[corrector_left::]),
-									s =[20]*len(maximum_left[corrector_left::]))
+	points_left = ax[0].scatter(maximum_left[::], columns[0,maximum_left[::]],
+									color=['blue']*len(maximum_left[::]),
+									s =[20]*len(maximum_left[::]))
 	ax[0].plot(columns[0])
 
 	points_vertex = ax[1].scatter(maximum_vertex, columns[1,maximum_vertex],
@@ -732,12 +732,12 @@ def updateOrderPlot ():
 									s =[20]*len(maximum_vertex))
 	ax[1].plot(columns[1])
 
-	points_right = ax[2].scatter(maximum_right[corrector_right::], columns[2,maximum_right[corrector_right::]],
-									color=['blue']*len(maximum_right[corrector_right::]),
-									s =[20]*len(maximum_right[corrector_right::]))
+	points_right = ax[2].scatter(maximum_right[::], columns[2,maximum_right[::]],
+									color=['blue']*len(maximum_right[::]),
+									s =[20]*len(maximum_right[::]))
 	ax[2].plot(columns[2])
 
-	for label,x,y in zip(labels_left, maximum_left[corrector_left::],columns[0,maximum_left[corrector_left::]]):
+	for label,x,y in zip(labels_left, maximum_left[::],columns[0,maximum_left]):
 		ax[0].annotate(label, xy=(x,y), xytext=(0,10),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
@@ -747,24 +747,24 @@ def updateOrderPlot ():
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
-	for label,x,y in zip(labels_right, maximum_right[corrector_right::], columns[2,maximum_right[corrector_right::]]):
+	for label,x,y in zip(labels_right, maximum_right[::], columns[2,maximum_right]):
 		ax[2].annotate(label, xy=(x,y), xytext=(0,10),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
 	for label,x,y in zip(labels_left, 
-		np.repeat(left_location, len(amount_left)-corrector_left), maximum_left[corrector_left::]):
+		np.repeat(corrector_left, len(amount_left)), maximum_left):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
-	for label,x,y in zip(labels_vertex, np.repeat(vertex_location, len(amount_vertex)), 
+	for label,x,y in zip(labels_vertex, np.repeat(vertex_location, len(maximum_vertex)), 
 		maximum_vertex):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
-	for label,x,y in zip(labels_right, np.repeat(right_location, len(amount_right-corrector_right)), maximum_right[corrector_right::]):
+	for label,x,y in zip(labels_right, np.repeat(corrector_right, len(maximum_right)), maximum_right):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
@@ -780,6 +780,7 @@ def updateOrderPlot ():
 	toggleSelector.RS=RectangleSelector(ax[1], selectPeaks, 
 		drawtype = 'box', useblit=True, button=[1, 3], minspanx=1, minspany=1, 
 		spancoords='pixels')
+
 
 #ADjusts the median of the gaussian curve as this can shift by ~1 px
 def gaussAdjust(weights, point):
@@ -864,10 +865,10 @@ def updateSegmentPeaks(start,end):
 
 def autoFitter ():
 	global f, z
-	y_values_order = np.array([maximum_left[location_left+corrector_left].flatten(),
+	y_values_order = np.array([maximum_left[location_left].flatten(),
 							maximum_vertex[location_vertex].flatten(),
-							 maximum_right[location_right+corrector_right].flatten()])
-	x_values_order = np.array([left_location, vertex_location, right_location]).flatten()
+							 maximum_right[location_right].flatten()])
+	x_values_order = np.array([corrector_left, vertex_location, corrector_right]).flatten()
 	z=np.polyfit(x_values_order, y_values_order, 2)
 	
 	doneTraceWind()
@@ -898,22 +899,36 @@ def checkVertex(max_row, length):
 			difference = abs(max_row[i]-vertex)
 	return vertex_max
 
-def maximumDiscriminator (maximum,vertex_max_index, columns):
+def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 	corrector_left = 0
 	corrector_right = 0
-	i = 0
-	while (i<vertex_max_index):
-		if (maxima_Row_Function(maximum[i])>=1.2*columns[0,maximum_left[0]]):
-			corrector_left=corrector_left+1
+	vertex = len(g_data[0])/2
+	lowerVal=maxima[0]
+	isFoundLeft = False
+	isFoundRight = False
+	i=vertex
+	while (i>overscan_left and not isFoundLeft):
+		maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
+		print maximum_vertex
+		if abs(maximum_vertex[0]-lowerVal)<=thick/2:
+			lowerVal=maximum_vertex[0]
+		else:
+			corrector_left=i+1
+			isFoundLeft=True
+		i=i-1
+
+	i=vertex
+	lowerVal=maxima[0]
+	while (i<overscan_right and not isFoundRight):
+		maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
+		if abs(maximum_vertex[0]-lowerVal)<=thick/2:
+			lowerVal=maximum_vertex[0]
+		else:
+			corrector_right=i-1
+			isFoundRight=True
 		i=i+1
 
-	i=vertex_max_index+1
-	while(i<len(maximum) and i>vertex_max_index):
-		if (maxima_Row_Function(maximum[i])>=1.2*columns[2, maximum_right[0]]):
-			corrector_right=corrector_right+1
-		i=i+1
-
-
+	
 	return corrector_left, corrector_right
 
 #Wavelength Calibration submodules
@@ -1399,7 +1414,7 @@ def orderTracer ():
 	global counter, thick, orderCalibrationWin,orderCorrectWin, orderCanvas, g_orderLoc, cid, medianBias_val, meanOverScan_val
 	global corrector_left, corrector_right, amount_left, amount_vertex, amount_right, labels_left, labels_right
 	global labels_vertex, maximum_left, maximum_vertex, maximum_right, z, maxima_Row_Fit, maxima_Row_Function, columns
-	global left_location, vertex_location, right_location, g_data,f
+	global left_location, vertex_location, right_location, g_data,f, entry_thick
 
 	medianBias_val = openNumpyFile('bias')
 	meanOverScan_val = openNumpyFile('overscan.npy')
@@ -1417,51 +1432,67 @@ def orderTracer ():
 	toDelete_vertex=np.array([])
 	toDelete_right=np.array([])
 
-	left_location=np.array([overScanLeft+1])
+	
 	vertex_location=np.array([len(g_data[0])/2])
-	right_location = np.array([overScanRight-1])
+	
 
 	columns = np.ndarray(shape = (3, len(g_data)))
-	columns[0] = g_data[::,overScanLeft+1]
+	
 	columns[1] = g_data[::, len(g_data[0])/2]
-	columns[2] = g_data[::, overScanRight-1]
+	
 
 	message = "The image of the Flat Lamp is shown.\nIt can be used for reference for the following steps,"
 	dialog(message, 'i')
 
 	orderCalibrationWin = Tk()
 	orderCalibrationWin.title('SpecTracer')
-	fig1 = plt.figure(figsize= (10,8))
+
+	helv20 = tkFont.Font(family ='Helvetica', size = 10, weight = 'bold')
+
+	fig1 = plt.figure(figsize= (10,6))
 	ax1 = fig1.add_subplot(111)
+
+	ax1.imshow(g_data, origin = 'lower')
+	ax1.set_xlabel('Pixel')
+	ax1.set_ylabel('Pixel')
+	ax1.set_title('CCD')
+	
 	toolbar_frame=Frame(orderCalibrationWin)
 
-	done_button = Button(orderCalibrationWin, text = 'Done', command = done)
+	done_button = Button(orderCalibrationWin, text = 'Done', command = doneThick)
 	orderCanvas = FigureCanvasTkAgg(fig1, master=orderCalibrationWin)
-
-	done_button.grid(row=3, column = 0, sticky = S)
+	label_thick = Label(orderCalibrationWin,text='Thickness: ',font=helv20)
+	entry_thick = Entry(orderCalibrationWin)
+	
+	done_button.grid(row=3, column = 2, sticky = W)
 
 	toolbar_frame.grid(row=0, column=0, columnspan =2, sticky = W)
+
+	label_thick.grid(row=3,column=0,columnspan=1,sticky=E)
+	entry_thick.grid(row=3,column=1,columnspan=1,sticky=W)
 	toolbar = NavigationToolbar2TkAgg(orderCanvas, toolbar_frame)
-	orderCanvas.get_tk_widget().grid(row=2, column = 0, columnspan = 4)
+	orderCanvas.get_tk_widget().grid(row=1, column = 0, columnspan = 3,rowspan=1)
 	
-
-	plt.imshow(g_data, origin = 'lower')
-	plt.xlabel('Pixel')
-	plt.ylabel('Pixel')
-	plt.title('CCD')
 	fig1.canvas.draw()
+	
 	message = "Please input the thickness of the order"
-	thick = dialog(message, 'e')
+	dialog(message, 'i')
 
-
+	
 	orderCalibrationWin.protocol("WM_DELETE_WINDOW", closeOrderCalibWin)
 	orderCalibrationWin.mainloop()
 
 
-	maximum_left = argrelextrema(columns[0], np.greater_equal, order=thick/2)[0]
 	maximum_vertex = argrelextrema(columns[1], np.greater_equal, order=thick/2)[0]
+	corrector_left, corrector_right = maximumDiscriminator(maximum_vertex, g_length, overScanLeft,overScanRight)
+
+	columns[0] = g_data[::,corrector_left]
+	columns[2] = g_data[::, corrector_right]
+
+	maximum_left = argrelextrema(columns[0], np.greater_equal, order=thick/2)[0]
 	maximum_right = argrelextrema(columns[2], np.greater_equal, order=thick/2)[0]
 
+	
 
 	i=0
 
@@ -1486,7 +1517,7 @@ def orderTracer ():
 	maximum_left = np.delete(maximum_left, toDelete_left)
 	maximum_vertex = np.delete(maximum_vertex, toDelete_vertex)
 	maximum_right = np.delete(maximum_right, toDelete_right)
-
+	'''
 	row = g_data[maximum_vertex[0]-thick/4,overScanLeft:overScanRight]
 	x_Coord=np.arange(0,len(row), 1)
 	maxima_Row_Fit = np.polyfit (x_Coord, row, 20)
@@ -1495,16 +1526,17 @@ def orderTracer ():
 	max_row = argrelextrema(maxima_Row_Function(x_Coord), np.greater_equal, order =thick/2)[0]
 
 	vertex_Row_Index = checkVertex(max_row, g_length)
-	corrector_left, corrector_right = maximumDiscriminator(max_row, vertex_Row_Index, columns)
+	'''
 
+	
 
-	amount_left=np.arange(0,len(maximum_left)-corrector_left,1)
+	amount_left=np.arange(0,len(maximum_left),1)
 	amount_vertex=np.arange(0,len(maximum_vertex),1)
-	amount_right=np.arange(0,len(maximum_right)-corrector_right,1)
+	amount_right=np.arange(0,len(maximum_right),1)
 
-	labels_left = ['{0}'.format(i) for i in range(len(maximum_left)-corrector_left)]
+	labels_left = ['{0}'.format(i) for i in range(len(maximum_left))]
 	labels_vertex = ['{0}'.format(i) for i in range(len(maximum_vertex))]
-	labels_right = ['{0}'.format(i) for i in range(len(maximum_right)-corrector_right)]
+	labels_right = ['{0}'.format(i) for i in range(len(maximum_right))]
 
 	
 	orderTracerWindow = Tk()
@@ -1627,9 +1659,23 @@ in all three of the plots. Other orders can be appended later."""
 	saveToFile ('displacement', g_orderLoc)
 	saveToFile ('drift', g_drift)
 	
+def doneOverscan():
+	global left, right
+	left=int(entry_start.get())
+	right=int(entry_end.get())
+	overScanWin.quit()
+	overScanWin.destroy()
+
+def doneThick():
+	global thick
+	thick=int(entry_thick.get())
+	orderCalibrationWin.quit()
+	orderCalibrationWin.destroy()
+
+
 def biasDarkCalibration ():
 	global isBias, isDark, is_Primary, bias_dir, dark_dir, entry, instrument, isFiles
-	global bias, dark, overScanWin, overScanFitWin
+	global bias, dark, overScanWin, overScanFitWin, overScanWin,entry_end,entry_start,left,right
 	instruction = 'Please select file from where the orders \nwill be read. (Flat Lamp)'
 	nameFile_flat = getFileName(instruction)
 	flat_data = fits.getdata(nameFile_flat) 
@@ -1640,28 +1686,43 @@ def biasDarkCalibration ():
 	choice = dialog(message, 'q')
 
 	if (choice):
+		helv20 = tkFont.Font(family ='Helvetica', size = 10, weight = 'bold')
+
 		overScanWin = Tk()
 		overScanWin.title('SpecTracer')
 		fig3 = plt.figure(figsize= (10,5))
 		ax3 = fig3.add_subplot(111)
 		toolbar_frame=Frame(overScanWin)
 
+		
 		overScanCanvas = FigureCanvasTkAgg(fig3, master=overScanWin)
 
 		toolbar_frame.grid(row=0, column=0, columnspan =2, sticky = W)
-		toolbar = NavigationToolbar2TkAgg(overScanCanvas, toolbar_frame)
-		overScanCanvas.get_tk_widget().grid(row=2, column = 0, columnspan = 4)
+
+		done_button = Button(overScanWin,text='Done',command=doneOverscan)
+		label_start = Label(overScanWin, text = 'Left Overscan: ', font = helv20)
+		label_end = Label(overScanWin,text='Right Overscan: ',font=helv20)
 		
-		plt.imshow(flat_data, origin = 'lower')
-		plt.xlabel('Pixel')
-		plt.ylabel('Pixel')
-		plt.title('CCD')
+		entry_start = Entry(overScanWin)
+		entry_end = Entry(overScanWin)
+		toolbar = NavigationToolbar2TkAgg(overScanCanvas, toolbar_frame)
+
+		overScanCanvas.get_tk_widget().grid(row=2, column = 0, rowspan=4,columnspan = 1)
+		label_start.grid(row=2,column =1,rowspan=1,columnspan=1,sticky=W)
+		entry_start.grid(row=2,column =2,rowspan=1,columnspan=1,sticky=W)
+		label_end.grid(row=3,column =1,rowspan=1,columnspan=1,sticky=W)
+		entry_end.grid(row=3,column =2,rowspan=1,columnspan=1,sticky=W)
+		done_button.grid(row=4,column=1)
+
+		ax3.imshow(flat_data, origin = 'lower')
+		ax3.set_xlabel('Pixel')
+		ax3.set_ylabel('Pixel')
+		ax3.set_title('CCD')
 		fig3.canvas.draw()
 
-		message = "Please input the coordinate where the left overscan ends"
-		left = dialog(message, 'e')
-		message = "Please input the coordinate from where the right overscan starts"
-		right = dialog(message, 'e')
+
+		message = "Please input the coordinate where the left overscan ends and the right overscan starts"
+		dialog(message,'i')
 
 		overScanWin.protocol('WM_DELETE_WINDOW', closeOverScanWin)
 		overScanWin.mainloop()
