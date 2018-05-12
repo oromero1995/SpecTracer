@@ -719,8 +719,8 @@ def updateNormalizePlot (order):
 		spancoords='pixels')
 
 def updateOrderPlot ():
-	global maximum_left, maximum_right, maximum_vertex, fig19, fig20, ax, ax20, columns, corrector_left, corrector_right
-	global points_right, points_left, points_vertex
+	global maximum_left, maximum_right, maximum_vertex, fig19, fig20, ax, ax20, columns
+	global points_right, points_left, points_vertex, lowerVal
 
 	points_left = ax[0].scatter(maximum_left[::], columns[0,maximum_left[::]],
 									color=['blue']*len(maximum_left[::]),
@@ -753,18 +753,20 @@ def updateOrderPlot ():
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
 	for label,x,y in zip(labels_left, 
-		np.repeat(corrector_left, len(amount_left)), maximum_left):
+		np.repeat(overScanLeft, len(amount_left)), maximum_left):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
-	for label,x,y in zip(labels_vertex, np.repeat(vertex_location, len(maximum_vertex)), 
+	for label,x,y in zip(labels_vertex, 
+		np.repeat(vertex_location, len(maximum_vertex)), 
 		maximum_vertex):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
 
-	for label,x,y in zip(labels_right, np.repeat(corrector_right, len(maximum_right)), maximum_right):
+	for label,x,y in zip(labels_right, 
+		np.repeat(overScanRight, len(maximum_right)), maximum_right):
 		ax20.annotate(label, xy=(x,y), xytext=(0,0),style = 'italic',
 			 textcoords='offset points',
 			bbox={'facecolor':'white', 'alpha':0.5, 'pad':3})
@@ -864,11 +866,27 @@ def updateSegmentPeaks(start,end):
 	fig19.canvas.draw()
 
 def autoFitter ():
-	global f, z
-	y_values_order = np.array([maximum_left[location_left].flatten(),
-							maximum_vertex[location_vertex].flatten(),
-							 maximum_right[location_right].flatten()])
-	x_values_order = np.array([corrector_left, vertex_location, corrector_right]).flatten()
+	global f, z, location_vertex,g_data,overScanRight,overScanLeft,overScanRight,thick
+
+	i=overScanLeft+1
+	while (i<overScanRight):
+		maximum=argrelextrema(g_data[int(lowerVal[i-overScanLeft-1]-thick/2)::,i],np.greater_equal,order=thick/2)[0]+int(lowerVal[i-overScanLeft-1]-thick/2)
+		j=0
+		toDelete=np.array([])
+		while (j<len(maximum)-1):
+			if (maximum[j]==(maximum[j+1]-1)):
+				toDelete= np.append(toDelete, [j])
+			j=j+1
+
+		maximum = np.delete(maximum, toDelete)
+
+		if (i==overScanLeft+1):
+			y_values_order=np.array([maximum[location_vertex]])
+		else:
+			y_values_order=np.append(y_values_order,[maximum[location_vertex]],axis=0)
+
+		i=i+1
+	x_values_order = np.arange(overScanLeft+1,overScanRight,1)
 	z=np.polyfit(x_values_order, y_values_order, 2)
 	
 	doneTraceWind()
@@ -903,33 +921,44 @@ def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 	corrector_left = 0
 	corrector_right = 0
 	vertex = len(g_data[0])/2
-	lowerVal=maxima[0]
+	lowerVal=np.zeros(overscan_right-overscan_left)
+	lowerVal[vertex-overscan_left]=maxima[0]
 	isFoundLeft = False
 	isFoundRight = False
 	i=vertex
-	while (i>overscan_left and not isFoundLeft):
-		maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
-		print maximum_vertex
-		if abs(maximum_vertex[0]-lowerVal)<=thick/2:
-			lowerVal=maximum_vertex[0]
-		else:
-			corrector_left=i+1
-			isFoundLeft=True
+	print overscan_right
+	while (i>overscan_left):
+		if(not isFoundLeft):
+			maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
+			if abs(maximum_vertex[0]-lowerVal[i-overscan_left])<=thick/2:
+				lowerVal[i-overscan_left-1]=maximum_vertex[0]
+			else:
+				isFoundLeft=True
+		if(isFoundLeft):
+			maximum_vertex = argrelextrema(g_data[int(lowerVal[i-overscan_left]-thick/2):,i], np.greater_equal, order=thick/2)[0]
+			lowerVal[i-overscan_left-1]=maximum_vertex[0]+lowerVal[i-overscan_left]-thick/2
+		print lowerVal[i-overscan_left-1]
 		i=i-1
 
 	i=vertex
-	lowerVal=maxima[0]
-	while (i<overscan_right and not isFoundRight):
-		maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
-		if abs(maximum_vertex[0]-lowerVal)<=thick/2:
-			lowerVal=maximum_vertex[0]
-		else:
-			corrector_right=i-1
-			isFoundRight=True
+	
+	while (i<overscan_right):
+		if(not isFoundRight):
+			maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
+			if abs(maximum_vertex[0]-lowerVal[i-overscan_left-1])<=thick/2:
+				lowerVal[i-overscan_left]=maximum_vertex[0]
+			else:
+				isFoundRight=True
+
+		if(isFoundRight):
+			maximum_vertex = argrelextrema(g_data[int(lowerVal[i-overscan_left-1]-thick/2):,i], np.greater_equal, order=thick/2)[0]
+			lowerVal[i-overscan_left]=maximum_vertex[0]+lowerVal[i-overscan_left-1]-thick/2
+
+		print lowerVal[i-overscan_left]
 		i=i+1
 
-	
-	return corrector_left, corrector_right
+	print lowerVal
+	return lowerVal
 
 #Wavelength Calibration submodules
 
@@ -1414,7 +1443,7 @@ def orderTracer ():
 	global counter, thick, orderCalibrationWin,orderCorrectWin, orderCanvas, g_orderLoc, cid, medianBias_val, meanOverScan_val
 	global corrector_left, corrector_right, amount_left, amount_vertex, amount_right, labels_left, labels_right
 	global labels_vertex, maximum_left, maximum_vertex, maximum_right, z, maxima_Row_Fit, maxima_Row_Function, columns
-	global left_location, vertex_location, right_location, g_data,f, entry_thick
+	global left_location, vertex_location, right_location, g_data,f, entry_thick, overScanLeft,overScanRight,lowerVal
 
 	medianBias_val = openNumpyFile('bias')
 	meanOverScan_val = openNumpyFile('overscan.npy')
@@ -1436,7 +1465,7 @@ def orderTracer ():
 	vertex_location=np.array([len(g_data[0])/2])
 	
 
-	columns = np.ndarray(shape = (3, len(g_data)))
+	columns = np.ones(shape = (3, len(g_data)))
 	
 	columns[1] = g_data[::, len(g_data[0])/2]
 	
@@ -1484,15 +1513,16 @@ def orderTracer ():
 
 
 	maximum_vertex = argrelextrema(columns[1], np.greater_equal, order=thick/2)[0]
-	corrector_left, corrector_right = maximumDiscriminator(maximum_vertex, g_length, overScanLeft,overScanRight)
+	lowerVal = maximumDiscriminator(maximum_vertex, g_length, overScanLeft,overScanRight)
 
-	columns[0] = g_data[::,corrector_left]
-	columns[2] = g_data[::, corrector_right]
+	print lowerVal
 
-	maximum_left = argrelextrema(columns[0], np.greater_equal, order=thick/2)[0]
-	maximum_right = argrelextrema(columns[2], np.greater_equal, order=thick/2)[0]
 
-	
+	columns[0] = g_data[::,overScanLeft+1]
+	columns[2] = g_data[::, overScanRight-1]
+
+	maximum_left= argrelextrema(columns[0,int(lowerVal[0]-thick/2):], np.greater_equal, order=thick/2)[0]+int(lowerVal[0]-thick/2)
+	maximum_right = argrelextrema(columns[2,int(lowerVal[-1]-thick/2):], np.greater_equal, order=thick/2)[0]+int(lowerVal[-1]-thick/2)
 
 	i=0
 
@@ -1594,7 +1624,7 @@ in all three of the plots. Other orders can be appended later."""
 	
 	g_multiplier = np.ones(len(z[0]))
 	g_drift = np.zeros(len(z[0]))
-	v_pan = np.zeros(len(z[0]))-thick/2
+	v_pan = np.zeros(len(z[0]))
 	h_pan = np.zeros(len(z[0]))
 	g_orderLoc = np.array((z[2]))
 
@@ -1655,7 +1685,7 @@ in all three of the plots. Other orders can be appended later."""
 	orderCorrectWin.mainloop()
 
 	saveToFile ('correction', g_multiplier)
-	g_orderLoc = g_orderLoc+v_pan
+	g_orderLoc = g_orderLoc+v_pan-thick/2
 	saveToFile ('displacement', g_orderLoc)
 	saveToFile ('drift', g_drift)
 	
