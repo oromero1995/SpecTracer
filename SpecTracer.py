@@ -1993,7 +1993,7 @@ def sensitivityCalibration ():
 	toolbar = NavigationToolbar2TkAgg(flatFieldCanvas, toolbar_frame)
 	flatFieldCanvas.get_tk_widget().grid(row=2, column = 0, columnspan = 4)
 	
-	plt.imshow(flat_field2[0])
+	plt.imshow(flat_field2[0],origin='lower')
 	plt.title('Flat Field')
 	fig6.canvas.draw()
 
@@ -2106,15 +2106,17 @@ def specTracer ():
 	isLandscape, length, width = getDimensions(spectrum_list[0])
 	spect_data = forceLandscape(spect_data, isLandscape)
 
-
 	isPlotted = False
 	
 	spect_data[:,0:overScan_location[0]] = ma.masked
 	spect_data[:,overScan_location[1]:length]=ma.masked
+	invalidFlux=np.where(spect_data<0.0)
+	spect_data[invalidFlux[0],invalidFlux[1]]=0
 
 
 	flat_data[:,0:overScan_location[0]] = ma.masked
 	flat_data[:,overScan_location[1]:length_flat]=ma.masked
+
 
 	spectrumWin = Tk()
 	spectrumWin.title('SpecTracer')
@@ -2323,7 +2325,7 @@ def specTracer ():
 	canvas.get_tk_widget().grid(row=2, column = 0, columnspan = 4)
 	
 
-	plt.imshow(flatF_data[len(flatF_data)/2])
+	plt.imshow(flatF_data[len(flatF_data)/2],origin='lower')
 	plt.title ('Flat Fielded Data at order 15')
 	plt.xlabel('Pixel')
 	plt.ylabel('Pixel')
