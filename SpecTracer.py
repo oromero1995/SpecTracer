@@ -127,6 +127,8 @@ def saveToFile (name, toWrite):
 		toWrite.dump(path)
 	elif (name == 'dark'):
 		toWrite.dump(path)
+	elif (name=='flat'):
+		toWrite.dump(path)
 	else:
 		extension = '.npy'
 		np.save(path, toWrite)
@@ -229,7 +231,7 @@ def closeFile ():
 	isFiles = False
 
 def closeMultiFile ():
-	if (file_Name=='' or not((file_Name[-3::] == 'fit') or (file_Name[-4::]=='fits'))):
+	if (file_List==''):# or not((file_List[-3::] == 'fit') or (file_List[-4::]=='fits'))):
 		message = 'Please select a valid file!'
 		dialog(message, 'i')
 	else:
@@ -341,10 +343,10 @@ def getName (file_Name):
 
 def getListName (file_Name):
 	global name
-	name = list(file_List)
+	name = list(file_Name)
 
 def getDir (instrument):
-	global primary_dir, secondary_dir, bias_dir, dark_dir, secondary_dir, normalize_dir
+	global primary_dir, secondary_dir, bias_dir, dark_dir, flat_dir, secondary_dir, normalize_dir
 	if (is_Primary):
 		primary_dir = instrument
 	elif (isBias):
@@ -355,20 +357,23 @@ def getDir (instrument):
 		secondary_dir = instrument
 	elif (isNrm):
 		normalize_dir = instrument
+	elif (isFlt):
+		flat_dir = instrument
 	isFiles = False
 
 
 #This module obtains the primary directory where all the core files
 #will be stored.
 
-def folderCreation (prim, bia, dar, sec, nrm, message):
+def folderCreation (prim, bia, dar, sec, nrm, flt, message):
 	global instrument, entry, folderDialog, isFiles
-	global is_Primary, isBias, isDark, isSec, isNrm
+	global is_Primary, isBias, isDark, isSec, isNrm, isFlt
 	is_Primary = prim
 	isBias = bia
 	isDark = dar
 	isSec=sec
 	isNrm=nrm
+	isFlt=flt
 	if (not isFiles):
 		instrument = ''
 		isFiles = True
@@ -410,7 +415,7 @@ def saveSpectrum (spectrum):
 	i = 0
 
 	#Initialize file parts
-	label = 'Order_' + str(i)
+	label = 'Order_' + str(i+order_start)
 
 	#Creation of Table for FITS file
 	col  = fits.Column(name = label, format = 'D' ,array = spectrum[i])
@@ -420,7 +425,7 @@ def saveSpectrum (spectrum):
 	
 	#Stores each order in a column of the FITS file
 	while (i < len(spectrum)):
-		label = 'Order_' + str(i)
+		label = 'Order_' + str(i+order_start)
 		column.extend([fits.Column(name = label, format = 'D' ,array = spectrum[i])])
 		i = i+1
 
@@ -457,10 +462,9 @@ def getScale (order):
 #Image Operations
 
 #Gets size of image
-def getDimensions (name):
-	hdu = fits.getheader(name)
-	length = hdu['naxis1']
-	width = hdu ['naxis2']
+def getDimensions (flat_data):
+	length = len(flat_data[0])
+	width = len(flat_data)
 
 	if (length > width):
 		flag = True
@@ -486,18 +490,18 @@ def gaussian (x,a,x0,sigma):
 
 #Updated plot by replotting fit lines after modifications are done
 def fitGrapher (x_new,axis, figure):
-	global g_data
+	global g_data, location_vertex
 	i = 0
 
 	#For each order
-	while (i< len(g_orderLoc)):
+	while (i< len(location_vertex)):
 		#Trace order (usual 2nd order)
 		t=f[i]
 		t.c[0]=g_multiplier[i]*f[i][2]
 		t.c[1]=f[i][1]-g_drift[i]
 		y_new = np.copy(t(x_new))+np.copy(g_orderLoc[i])+np.copy(v_pan[i])
 		plt.gca().plot(x_new, y_new, 'r-')
-		message = 'Order: ' + str(i)
+		message = 'Order: ' + str(location_vertex[i])
 		plt.gca().text(5, (g_orderLoc[i]), message, style = 'italic', 
 					bbox ={'facecolor':'white', 'alpha':0.5, 'pad':3})
 		f[i][2] = f[i][2]/g_multiplier[i]
@@ -527,8 +531,8 @@ def scatterArray (order):
 #Update Tkinter plots after modifications are done (i.e. changing order)
 def updatePlotShow (order):
 	global fig11
-	title = "Order: " + str(order)
-	scale, isCalibrated = getScale(order)
+	title = "Order: " + str(order + order_start)
+	scale, isCalibrated = getScale((order+order_start))
 
 	#Labels for x-axis. In case there is no information for the order it becomes pixel
 	if isCalibrated:
@@ -549,12 +553,12 @@ def updatePlotShow (order):
 
 def updatePlotGauss (order):
 	global fig8, flat_gauss, weightArray
-	title = "Gaussian Fit. Order: " + str(order)
+	title = "Gaussian Fit. Order: " + str(order+order_start)
 	plt.gca()
 	plt.cla()
 	
-	ax8.plot(gauss_step, weightArray[order], 'k--', label= 'Fit')
-	ax8.plot(gauss_step,flat_gauss[order].flatten(), 'k-', label = 'Data')
+	ax8.step(gauss_step, weightArray[order], 'k',linestyle='--', label= 'Fit')
+	ax8.step(gauss_step,flat_gauss[order].flatten(), 'k', label = 'Data')
 	legend = ax8.legend(loc = 'lower center', shadow = False)
 
 	plt.title(title, fontsize=16)
@@ -565,7 +569,7 @@ def updatePlotGauss (order):
 
 def updatePlotSens (order):
 	global fig5, ax5
-	title = "Order: " + str(order)
+	title = "Order: " + str(order+order_start)
 	plt.gcf()
 	plt.clf()
 
@@ -620,7 +624,7 @@ def updateLowPlot (order):
 	global fig14, pointsLow, x_Coord, rid,isLine
 	isLine = False
 	high = argrelextrema(spectrum_II[order], np.greater, order = 10)
-	title = "Order: " + str(order)
+	title = "Order: " + str(order+order_start)
 	ax15.cla()
 	ax14.cla()
 	ax14.plot (spectrum_II[order],'-k')
@@ -688,8 +692,8 @@ def updateNormalizePlot (order):
 
 	comparisonLine= np.ones(len(spectrum[order_g,0]))
 
-	title = "Order: " + str(order_g) + " (Non-Normalized)"
-	title_Low = "Order: " + str(order_g) + " (Normalized)"
+	title = "Order: " + str(order_g+order_start) + " (Non-Normalized)"
+	title_Low = "Order: " + str(order_g+order_start) + " (Normalized)"
 	axFittedSpectrum.set_title(title, fontsize=16)
 	axFittedSpectrum.set_xlabel("Pixel", fontsize=14)
 	axFittedSpectrum.set_ylabel("Flux", fontsize=14)
@@ -857,7 +861,7 @@ def toggleSelector():
 
 def updateSegmentPeaks(start,end):
 	global location_vertex, location_left, location_right, points_left, points_vertex, points_right
-	location_vertex = peakLocations(start,end)
+	location_vertex = peakLocations(start,end)[0]
 	location_left = np.copy(location_vertex)
 	location_right = np.copy(location_vertex)
 	points_left._facecolors[location_left,:] = (0,1,0,1)
@@ -926,7 +930,7 @@ def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 	isFoundLeft = False
 	isFoundRight = False
 	i=vertex
-	print overscan_right
+
 	while (i>overscan_left):
 		if(not isFoundLeft):
 			maximum_vertex = argrelextrema(g_data[::,i], np.greater_equal, order=thick/2)[0]
@@ -937,7 +941,7 @@ def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 		if(isFoundLeft):
 			maximum_vertex = argrelextrema(g_data[int(lowerVal[i-overscan_left]-thick/2):,i], np.greater_equal, order=thick/2)[0]
 			lowerVal[i-overscan_left-1]=maximum_vertex[0]+lowerVal[i-overscan_left]-thick/2
-		print lowerVal[i-overscan_left-1]
+
 		i=i-1
 
 	i=vertex
@@ -954,10 +958,9 @@ def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 			maximum_vertex = argrelextrema(g_data[int(lowerVal[i-overscan_left-1]-thick/2):,i], np.greater_equal, order=thick/2)[0]
 			lowerVal[i-overscan_left]=maximum_vertex[0]+lowerVal[i-overscan_left-1]-thick/2
 
-		print lowerVal[i-overscan_left]
+
 		i=i+1
 
-	print lowerVal
 	return lowerVal
 
 #Wavelength Calibration submodules
@@ -1342,7 +1345,7 @@ def regression():
 def saveRegression():
 	global z, orderLow
 	
-	name_File = str(orderLow)
+	name_File = str(orderLow+order_start)
 	saveToSecondaryFile(name_File, z)
 
 #Sets the degree of the fit determined by the user
@@ -1434,10 +1437,6 @@ def orderCalibInstructions():
 		dialog(message, 'i')
 #Main Modules
 def orderTracer ():
-	instruction = 'Please type the name of the file from where the orders \nwill be read. (Flat Lamp)'
-	
-	nameFile_orderCalib = getFileName(instruction)
-
 	global g_length, g_width, ax2, fig2, ax1, fig1, g_les, g_drift, ax, fig19, fig20, ax20,ax4
 	global fitX, fitY, g_proper_orderLoc, g_multiplier, correction, v_pan, h_pan, calibrationWindow, orderTracerWindow
 	global counter, thick, orderCalibrationWin,orderCorrectWin, orderCanvas, g_orderLoc, cid, medianBias_val, meanOverScan_val
@@ -1448,10 +1447,10 @@ def orderTracer ():
 	medianBias_val = openNumpyFile('bias')
 	meanOverScan_val = openNumpyFile('overscan.npy')
 	overScan_location = openNumpyFile('overscanloc.npy')
+	flat_data = openNumpyFile('flat')
 
-	data = fits.getdata(nameFile_orderCalib)
-	isLandscape, g_length, g_width= getDimensions (nameFile_orderCalib)
-	g_data = forceLandscape(data, isLandscape)
+	isLandscape, g_length, g_width= getDimensions(flat_data)
+	g_data = forceLandscape(flat_data, isLandscape)
 
 	g_data = g_data-medianBias_val-meanOverScan_val
 	overScanLeft=overScan_location[0]
@@ -1515,7 +1514,6 @@ def orderTracer ():
 	maximum_vertex = argrelextrema(columns[1], np.greater_equal, order=thick/2)[0]
 	lowerVal = maximumDiscriminator(maximum_vertex, g_length, overScanLeft,overScanRight)
 
-	print lowerVal
 
 
 	columns[0] = g_data[::,overScanLeft+1]
@@ -1633,7 +1631,8 @@ in all three of the plots. Other orders can be appended later."""
 	f= fitReader(z)
 	saveToFile ('fit' ,z)
 	saveToFile ('thick', thick)
-
+	saveToFile ('order', location_vertex[0])
+	print location_vertex[0]
 	x_new = np.linspace(0,g_length,g_length)
 
 	orderCorrectWin = Tk()
@@ -1652,7 +1651,7 @@ in all three of the plots. Other orders can be appended later."""
 	fitGrapher(x_new, ax2, fig2)
 
 
-				
+	'''			
 	message = "Some of the orders may not be traced \nvery accurately (specially at the edges) \nIf the bottom order is order 0, please \ntype the number of the order you would \nlike to modify to create a better fit. \nIf no order needs to be changed anymore \nplease type a -1"
 	choice = dialog(message, 'e')
 
@@ -1682,7 +1681,7 @@ in all three of the plots. Other orders can be appended later."""
 		choice = dialog(message, 'e')
 	
 	orderCorrectWin.protocol('WM_DELETE_WINDOW',closeOrderCorrectWin)
-	orderCorrectWin.mainloop()
+	orderCorrectWin.mainloop()'''
 
 	saveToFile ('correction', g_multiplier)
 	g_orderLoc = g_orderLoc+v_pan-thick/2
@@ -1704,13 +1703,25 @@ def doneThick():
 
 
 def biasDarkCalibration ():
-	global isBias, isDark, is_Primary, bias_dir, dark_dir, entry, instrument, isFiles
+	global isBias, isDark, is_Primary, bias_dir, dark_dir, flat_dir, entry, instrument, isFiles
 	global bias, dark, overScanWin, overScanFitWin, overScanWin,entry_end,entry_start,left,right
-	instruction = 'Please select file from where the orders \nwill be read. (Flat Lamp)'
-	nameFile_flat = getFileName(instruction)
-	flat_data = fits.getdata(nameFile_flat) 
-	isLandscape, length, width = getDimensions(nameFile_flat)
-	flat_data = forceLandscape(flat_data, isLandscape)
+	
+	
+	message = "Select the folder containing the flat files"
+	folderCreation(False, False, False, False, False, True, message)
+
+	flats_arr = np.array([])
+	for root, dirs, filenames in os.walk(flat_dir):
+		for filename in filenames:
+			if filename.endswith('.fit') or filename.endswith('.fits'):
+				flats_arr = np.append(flats_arr,[os.path.join(flat_dir, filename)])
+
+	temp_data = fits.getdata(flats_arr[0])
+
+	flats_data = np.ndarray(shape=(len(flats_arr),len(temp_data), len(temp_data[0])))
+	
+	isLandscape, length, width = getDimensions(temp_data)
+	flat_data = forceLandscape(temp_data, isLandscape)
 
 	message = "Is there an overscan?"
 	choice = dialog(message, 'q')
@@ -1795,7 +1806,7 @@ def biasDarkCalibration ():
 		right = length
 
 	message = "Select the folder containing the bias files"
-	folderCreation(False, True, False, False, False, message)
+	folderCreation(False, True, False, False, False, False, message)
 
 	biases_arr = np.array([])
 	for root, dirs, filenames in os.walk(bias_dir):
@@ -1821,7 +1832,7 @@ def biasDarkCalibration ():
 	choice = dialog(message, 'q')
 	if (choice):
 		message = "Select the folder containg the dark files"
-		folderCreation(False, False, True, False, False, message)
+		folderCreation(False, False, True, False, False, False, message)
 
 		darks_arr = np.array([])
 		for root, dirnames, filenames in os.walk(dark_dir):
@@ -1845,34 +1856,44 @@ def biasDarkCalibration ():
 		medianDark_val = np.ndarray(shape = (np.shape(medianBias_val)))
 		medianDark_val[:]=0
 
+	i = 0	
+	while i < len(flats_arr):
+		flats_data[i] = fits.getdata(flats_arr[i])-meanOverScan_val-medianBias_val
+		flats_data[:,0:left] = ma.masked
+		flats_data[:,right:length]=ma.masked
+
+		i=i+1
+	medianFlats_val = ma.median(flats_data, 0)
+
+	#Add no negative values condition
 
 	saveToFile('bias', medianBias_val)
 	saveToFile('dark', medianDark_val)
+	saveToFile('flat', medianFlats_val)
 	saveToFile('overscan', meanOverScan_val)
 	saveToFile('overscanloc', [left, right])
 	
 def sensitivityCalibration (): 
 	global order, fig5, ax5, entry, xPoints2, yPoints2, flat_flux,X2,Y2,surface_val2
-	global sensitivityWin,flatFieldWin, original_Y
-	instruction = "	Please select the file from where the orders\nwill be read. (Flat Lamp)"
-	nameFile_flat = getFileName(instruction)
-
-	flat_data = fits.getdata(nameFile_flat) 
-	isLandscape, length, width = getDimensions(nameFile_flat)
-	flat_data = forceLandscape(flat_data, isLandscape)
+	global sensitivityWin,flatFieldWin, original_Y, order_start
+	
+	
 	medianBias_val = openNumpyFile('bias')
 	medianDark_val = openNumpyFile('dark')
 	meanOverScan_val = openNumpyFile('overscan.npy')
+	flat_data = openNumpyFile('flat')
+
 	overScan_location = openNumpyFile('overscanloc.npy')
 	order_displace = openNumpyFile("displacement.npy")
 	order_thick = openNumpyFile("thick.npy")
 	order_multiply = openNumpyFile("correction.npy")
 	order_drift = openNumpyFile("drift.npy")
 	z = openNumpyFile("fit.npy")
+	order_start = openNumpyFile("order.npy")
 
 
-	flat_data = flat_data-medianBias_val-meanOverScan_val
-
+	isLandscape, length, width = getDimensions(flat_data)
+	flat_data = forceLandscape(flat_data, isLandscape)
 	
 	g = fitReader(z)	
 
@@ -2005,7 +2026,7 @@ def sensitivityCalibration ():
 	saveToFile('flatfield', flat_field2)
 
 def getMultiFileName (instruction):
-	global file_List, entry, fileBox, isFiles, name
+	global file_List, entry, fileBox, isFiles, name, file_Name
 
 
 	if (not isFiles):
@@ -2065,8 +2086,9 @@ def specTracer ():
 	global weightArray, reducedSpectWin, fig8, fig9,ax8,ax9, gauss_step, flat_gauss, order, x_Dimension,normalization_Array
 	global figFittedSpectrum, figNormalizedSpectrum, axFittedSpectrum, axNormalizedSpectrum, spectrumNormalized, isNormalized, normalizeSpectWin,rect
 	global canvas_NormalizedSpectrum, entry_nrm, entry_slice, maskedSegmentX, maskedSegmentY, coloredSegmentY, coloredSegmentX, isCleared
-	global jump_Array, normalizationOrder_Array, normalizedFileExists, overScan_location
+	global jump_Array, normalizationOrder_Array, normalizedFileExists, overScan_location, order_start
 
+	isFiles=False
 	z = openNumpyFile ('fit.npy')
 	displacement = openNumpyFile('displacement.npy')
 	correct = openNumpyFile('correction.npy')
@@ -2077,17 +2099,16 @@ def specTracer ():
 	overScan = openNumpyFile('overscan.npy')
 	overScan_location = openNumpyFile('overscanloc.npy')
 	flatF = openNumpyFile('flatfield')
+	order_start = openNumpyFile("order.npy")
+	flat_data = openNumpyFile('flat')
 	
 	maske = ma.getmaskarray(flatF)
 
 
-	instruction = 'Please type the name of the FITS file \ncontaining the Flat Lamp'
-	flat_file = getFileName(instruction)
-	flat_data = fits.getdata(flat_file) 
 
-	isLandscape_flat, length_flat, width_flat = getDimensions(flat_file)
+	isLandscape_flat, length_flat, width_flat = getDimensions(flat_data)
 	flat_data = forceLandscape(flat_data, isLandscape_flat)
-	flat_data = flat_data-bias-overScan
+
 
 	instruction =  'Please type the name of the file containing the spectrum'
 	spectrum_list = getMultiFileName(instruction)
@@ -2103,8 +2124,8 @@ def specTracer ():
 		spect_data = spect_data-overScan
 
 
-	isLandscape, length, width = getDimensions(spectrum_list[0])
-	spect_data = forceLandscape(spect_data, isLandscape)
+	isLandscape, length, width = getDimensions(spect_data)
+	spect_data = np.array(forceLandscape(spect_data, isLandscape))
 
 	isPlotted = False
 	
@@ -2326,7 +2347,7 @@ def specTracer ():
 	
 
 	plt.imshow(flatF_data[len(flatF_data)/2],origin='lower')
-	plt.title ('Flat Fielded Data at order 15')
+	plt.title ('Flat Fielded Data at order: '+str(int(len(flatF_data)/2)+order_start))
 	plt.xlabel('Pixel')
 	plt.ylabel('Pixel')
 	fig9.canvas.draw()
@@ -2462,11 +2483,11 @@ def checkStarNormalization():
 
 	if(isPreviouslyNormalized):
 		message = "Please select the folder related to the Star"
-		folderCreation(False,False,False,False,True, message)
+		folderCreation(False,False,False,False,True, False, message)
 		readAuxiliaryFiles()
 	else:
 		message = "Please create the folder for the normalization of this Star"
-		folderCreation(False,False,False,False,True, message)
+		folderCreation(False,False,False,False,True, False,  message)
 
 	return isPreviouslyNormalized
 
@@ -2477,19 +2498,18 @@ def closeGraph ():
 		graph.destroy()
 
 def spectrumGraph ():
-	global canvas, spectrum_In, order, entry, graph, fig11, ax11, g_length, overScan_location
+	global canvas, spectrum_In, order, entry, graph, fig11, ax11, g_length, overScan_location, order_start
 
 	overScan_location=openNumpyFile('overscanloc.npy')
-
-	instruction = "Please type the name of a file containing the image \ncaptured by the CCD (Flat Lamp)"
-	nameFile_Instrument = getFileName(instruction)
-	isLandscape, g_length, g_width = getDimensions (nameFile_Instrument)
+	order_start = openNumpyFile('order.npy')
+	flat_data = openNumpyFile('flat')
+	isLandscape, g_length, g_width = getDimensions (flat_data)
 
 	instruction = "Please type the name of the file, containing the reduced spectrum"
 	spectrum_In = readSpectrumFits(instruction)
 
 	message = "Please select the folder with the Calibrations."
-	folderCreation(False, False, False, True, False, message)
+	folderCreation(False, False, False, True, False, False, message)
 
 	
 	graph = Tk()
@@ -2529,17 +2549,19 @@ def spectrumGraph ():
 def wavelengthFunctionGen():
 	global canvas, spectrum_In, spectrum_II, order, orderLow, isLine
 	global entry_up, entry_dwn, entry_rt, calibrationWindow, fig13, fig14, fig15, ax13,ax14,ax15, calibrationMaster
-	global crossRelatedScatter, isLandscape, g_length, g_width, date
+	global crossRelatedScatter, isLandscape, g_length, g_width, date, order_start, number_reduced
 
-	instruction = "Please type the name of a file containing the image \ncaptured by the CCD (Flat Lamp)"
-	nameFile_Instrument = getFileName(instruction)
-	isLandscape, g_length, g_width = getDimensions (nameFile_Instrument)
+	order_start = openNumpyFile("order.npy")
+
+	flat_data = openNumpyFile('flat')
+	isLandscape, g_length, g_width = getDimensions (flat_data)
 	
 	instruction = "Select the file of the reduced spectrum with known wavelengths"
 	spectrum_In = readSpectrumFits(instruction)
 	
 	instruction = "Select the file with the reduced spectrum of the calibration lamp\nFor this specific measurement"
 	spectrum_II = readSpectrumFits(instruction)
+	number_reduced = len(spectrum_II)
 
 	instruction = "Select the master file with: wavelengths, coordinates, and order"
 	master_Calibration_File = getFileName(instruction)
@@ -2547,7 +2569,7 @@ def wavelengthFunctionGen():
 	
 
 	instruction = "Please select the folder (or create one) with the date \n on which these measurements were taken. Format: 'DD-MM-YYYY"
-	folderCreation(False, False, False, True, False, instruction)
+	folderCreation(False, False, False, True, False, False,  instruction)
 
 	crossRelatedScatter = []
 
@@ -2634,6 +2656,7 @@ def wavelengthFunctionGen():
 
 	calibrationWindow.protocol("WM_DELETE_WINDOW", closeCalibWind) 	 	
 	calibrationWindow.mainloop()
+	calibrationFilesToFits()
 
 #Order Operations
 def orderExists ():
@@ -2650,8 +2673,7 @@ def orderAppend ():
 	global g_data, g_width, isLandscape, g_length, g_orderLoc, g_correction, g_drift, appendWin
 	global fig16, g_multiplier, f, v_pan, h_pan, cid, ax1, z, top, g_displacement, g_slide, canvas, f ,z
 	
-	instruction = " Please type the name of the file from where the orders\nw ill be read. (Flat Lamp)"
-	nameFile_orderCalib = getFileName(instruction)
+	flat_data = openNumpyFile('flat')
 
 	g_displacement = openNumpyFile('displacement.npy')
 	z = openNumpyFile('fit.npy')
@@ -2659,12 +2681,12 @@ def orderAppend ():
 	g_correction = openNumpyFile('correction.npy')
 	g_slide = openNumpyFile('drift.npy')
 
-	data = fits.getdata(nameFile_orderCalib)
+	data = flat_data
 	g_data = []
 	g_orderLoc = []
 	placeHold = np.zeros(len(g_displacement))
 
-	isLandscape, g_length, g_width= getDimensions (nameFile_orderCalib)
+	isLandscape, g_length, g_width= getDimensions (flat_data)
 	g_data = forceLandscape(data, isLandscape)
 
 	appendWin = Tk()
@@ -2802,11 +2824,10 @@ def orderModify ():
 
 	isFiles = False
 	
-	instruction = " Please type the name of the file from where the orders\nwill be read. (Flat Lamp)"
-	nameFile_orderCalib = getFileName(instruction)
+	flat_data=openNumpyFile('flat')
 
 	data = fits.getdata(nameFile_orderCalib)
-	isLandscape, g_length, g_width= getDimensions (nameFile_orderCalib)
+	isLandscape, g_length, g_width= getDimensions (flat_data)
 	g_data = forceLandscape(data, isLandscape)
 	z = openNumpyFile ('fit.npy')
 	g_correction = openNumpyFile('correction.npy')
@@ -2864,6 +2885,97 @@ def orderActions ():
 	else:
 		orderTracer()
 
+def searchForFitsCalib (calib_dir):
+	wavelength_calib = np.array([])
+	for root, dirs, filenames in os.walk(calib_dir):
+		for filename in filenames:
+			if filename.endswith('.fit') or filename.endswith('.fits'):
+				wavelength_calib = np.append(wavelength_calib,[os.path.join(calib_dir, filename)])
+
+	return wavelength_calib[0]
+
+def readTableFits (fileName):
+	hdulist = fits.open(fileName)
+	tbdata = hdulist[1]
+
+	return tbdata
+
+def calibrationFilesToFits ():
+	global secondary_dir, divider, number_reduced, order_start
+	scales = np.ndarray(shape=(number_reduced,g_length))
+	x_Range=np.linspace(0,g_length,g_length)
+	hasFiles = True
+	i = 0
+
+	while i<number_reduced:
+		try:
+			z = np.load(secondary_dir + divider + str(i+order_start)+'.npy')
+		except (IOError):
+			hasFiles = False
+			scales[i]=0
+			break
+		if hasFiles:
+			f = np.poly1d(z)
+			scales[i] = f(x_Range)
+			print f(x_Range)
+		hasFiles = True
+		i = i +1
+
+	i = 0
+	label = 'Order_' + str(i+order_start)
+	#Creation of Table for FITS file
+	col  = fits.Column(name = label, format = 'D' ,array = scales[0])
+	column  = [col]
+	hdu = fits.PrimaryHDU(scales)
+	hdr = hdu.header
+
+	i = i + 1
+
+	#Stores each order in a column of the FITS file
+	while i<len(scales):
+		label = 'Order_' + str(i+order_start)
+		column.extend([fits.Column(name = label, format = 'D' ,array = scales[i])])
+		
+		#writes to file
+		i = i+1
+
+	cols = fits.ColDefs(column)
+	tbhdu = fits.BinTableHDU.from_columns(cols)
+	thdulist = fits.HDUList([hdu, tbhdu])
+	thdulist.writeto(secondary_dir+divider+"Wavelength.fits", overwrite=True)
+
+
+def saveSpectrumWavelength ():
+	message = "Please type the name of the folder containing the Calibration files"
+	folderCreation(False, False, False, True, False, False, message)
+	calib_dir=secondary_dir
+	calib_files = searchForFitsCalib(calib_dir)
+	print calib_files
+	calib_table = readTableFits(calib_files)
+
+	instruction = "Select all spectrum files associated with this Wavelength solution"
+	spectrum_Files = getMultiFileName(instruction)
+	i=0
+
+	while i < len(spectrum_Files):
+		star_name=os.path.splitext(os.path.normpath(spectrum_Files[i]))[0]
+		spectrum_table = readTableFits(spectrum_Files[i])
+
+		hdu = fits.PrimaryHDU()
+		hdr = hdu.header
+
+		hdr['FLUX'] = 'Table_0'
+		hdr['WAVEL'] = 'Table_1'
+		hdr['SFTWR'] = 'SpecTracer'
+
+		thdulist = fits.HDUList([hdu, spectrum_table, calib_table])
+		thdulist.writeto(star_name+"_WavelengthCalibrated.fits", overwrite=True)
+
+		i=i+1
+
+	message = 'Files created succesfully! (Added _WavelengthCalibrated)'
+	dialog(message, 'i')
+
 def welcome ():
 	welcomeDialog = Tk()
 	welcomeDialog.title('SpecTracer')
@@ -2884,7 +2996,7 @@ def main ():
 		
 		message = "Select the folder corresponding to the telescope used"
 
-		folderCreation (True, False, False,False,False, message)
+		folderCreation (True, False, False,False,False, False, message)
 
 		
 		isFiles = False
@@ -2902,6 +3014,8 @@ def main ():
 				command = specTracer, font = helv20)
 		wavelength_button = Button(master, text = "Wavelength Calibration", 
 				command = wavelengthFunctionGen, font = helv20)
+		save_button = Button(master, text="Export Spectrum",
+				command = saveSpectrumWavelength, font =helv20)
 		spectrum_button = Button(master, text = "Show Spectrum", 
 				command = spectrumGraph, font = helv20)
 		exit_button = Button(master, text = "Exit", 
@@ -2919,7 +3033,9 @@ def main ():
 				padx = 20, pady=5, sticky = N+S)
 		spectrum_button.grid(row=6, column = 0, columnspan = 3, 
 				padx = 20, pady=5, sticky = N+S)
-		exit_button.grid(row=7, column = 0, columnspan = 3, 
+		save_button.grid(row=7, column=0, columnspan = 3,
+				padx = 20, pady=5, sticky = N+S)
+		exit_button.grid(row=8, column = 0, columnspan = 3, 
 				padx = 20, pady=5, sticky = N+S)
 	
 		master.mainloop()
