@@ -121,13 +121,13 @@ def readSpectrumFits(instruction):
 def saveToFile (name, toWrite):
 	path = primary_dir + divider + name
 	extension = ''
-	if (name == 'flatfield'):
+	if (name == 'flatfield.calib'):
 		toWrite.dump(path)
-	elif (name == 'bias'):
+	elif (name == 'bias.calib'):
 		toWrite.dump(path)
-	elif (name == 'dark'):
+	elif (name == 'dark.calib'):
 		toWrite.dump(path)
-	elif (name=='flat'):
+	elif (name=='flat.calib'):
 		toWrite.dump(path)
 	else:
 		extension = '.npy'
@@ -717,10 +717,10 @@ def updateNormalizePlot (order):
 	figNormalizedSpectrum.tight_layout()
 	figFittedSpectrum.canvas.draw()
 	figNormalizedSpectrum.canvas.draw()
-
+	rectangle_props = dict(facecolor='red', edgecolor = 'black', alpha=0.2, fill=False)
 	toggleSelector.RS=RectangleSelector(axNormalizedSpectrum, selectNormalized, 
 		drawtype = 'box', useblit=True, button=[1, 3], minspanx=1, minspany=1, 
-		spancoords='pixels')
+		spancoords='pixels',rectprops=rectangle_props)
 
 def updateOrderPlot ():
 	global maximum_left, maximum_right, maximum_vertex, fig19, fig20, ax, ax20, columns
@@ -782,10 +782,10 @@ def updateOrderPlot ():
 	fig19.tight_layout()
 	fig19.canvas.draw()
 	fig20.canvas.draw()
-
+	rectangle_props = dict(facecolor='red', edgecolor = 'black', alpha=0.2, fill=False)
 	toggleSelector.RS=RectangleSelector(ax[1], selectPeaks, 
 		drawtype = 'box', useblit=True, button=[1, 3], minspanx=1, minspany=1, 
-		spancoords='pixels')
+		spancoords='pixels',rectprops=rectangle_props)
 
 
 #ADjusts the median of the gaussian curve as this can shift by ~1 px
@@ -870,11 +870,19 @@ def updateSegmentPeaks(start,end):
 	fig19.canvas.draw()
 
 def autoFitter ():
-	global f, z, location_vertex,g_data,overScanRight,overScanLeft,overScanRight,thick
-
+	global f, z, location_vertex,g_data,overScanRight,overScanLeft,overScanRight,maximum_vertex
+	actual_thick = int(entry_actual_thick.get())
 	i=overScanLeft+1
-	while (i<overScanRight):
-		maximum=argrelextrema(g_data[int(lowerVal[i-overScanLeft-1]-thick/2)::,i],np.greater_equal,order=thick/2)[0]+int(lowerVal[i-overScanLeft-1]-thick/2)
+	isValidThickness=False
+	if (2*maximum_vertex[0]-actual_thick < 0):
+		isValidThickness = False
+		message = "Thickness too large. Max thickness allowed is: " + str(maximum_vertex[0]*2)
+		dialog(message, 'i')
+	else:
+		isValidThickness = True
+
+	while (i<overScanRight and isValidThickness):
+		maximum=argrelextrema(g_data[int(lowerVal[i-overScanLeft-1]-actual_thick/2)::,i],np.greater_equal,order=actual_thick/2)[0]+int(lowerVal[i-overScanLeft-1]-actual_thick/2)
 		j=0
 		toDelete=np.array([])
 		while (j<len(maximum)-1):
@@ -890,10 +898,12 @@ def autoFitter ():
 			y_values_order=np.append(y_values_order,[maximum[location_vertex]],axis=0)
 
 		i=i+1
-	x_values_order = np.arange(overScanLeft+1,overScanRight,1)
-	z=np.polyfit(x_values_order, y_values_order, 2)
+
+	if (isValidThickness):
+		x_values_order = np.arange(overScanLeft+1,overScanRight,1)
+		z=np.polyfit(x_values_order, y_values_order, 2)
 	
-	doneTraceWind()
+		doneTraceWind()
 
 def fitReader (z):
 	f =[]
@@ -930,6 +940,8 @@ def maximumDiscriminator (maxima, length,overscan_left,overscan_right):
 	isFoundLeft = False
 	isFoundRight = False
 	i=vertex
+
+	
 
 	while (i>overscan_left):
 		if(not isFoundLeft):
@@ -1443,13 +1455,15 @@ def orderTracer ():
 	global corrector_left, corrector_right, amount_left, amount_vertex, amount_right, labels_left, labels_right
 	global labels_vertex, maximum_left, maximum_vertex, maximum_right, z, maxima_Row_Fit, maxima_Row_Function, columns
 	global left_location, vertex_location, right_location, g_data,f, entry_thick, overScanLeft,overScanRight,lowerVal
+	global entry_actual_thick, actual_thick
 
-	medianBias_val = openNumpyFile('bias')
+	medianBias_val = openNumpyFile('bias.calib')
 	meanOverScan_val = openNumpyFile('overscan.npy')
 	overScan_location = openNumpyFile('overscanloc.npy')
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 
 	isLandscape, g_length, g_width= getDimensions(flat_data)
+
 	g_data = forceLandscape(flat_data, isLandscape)
 
 	g_data = g_data-medianBias_val-meanOverScan_val
@@ -1489,7 +1503,7 @@ def orderTracer ():
 
 	done_button = Button(orderCalibrationWin, text = 'Done', command = doneThick)
 	orderCanvas = FigureCanvasTkAgg(fig1, master=orderCalibrationWin)
-	label_thick = Label(orderCalibrationWin,text='Thickness: ',font=helv20)
+	label_thick = Label(orderCalibrationWin,text='First Order At: ',font=helv20)
 	entry_thick = Entry(orderCalibrationWin)
 	
 	done_button.grid(row=3, column = 2, sticky = W)
@@ -1503,7 +1517,7 @@ def orderTracer ():
 	
 	fig1.canvas.draw()
 	
-	message = "Please input the thickness of the order"
+	message = "Please input the distance from the bottom pixel to the center of the first order at the center of the CCD"
 	dialog(message, 'i')
 
 	
@@ -1566,6 +1580,7 @@ def orderTracer ():
 	labels_vertex = ['{0}'.format(i) for i in range(len(maximum_vertex))]
 	labels_right = ['{0}'.format(i) for i in range(len(maximum_right))]
 
+	actual_thick = int(abs(maximum_left[0]-maximum_left[1]))
 	
 	orderTracerWindow = Tk()
 
@@ -1587,12 +1602,15 @@ def orderTracer ():
 					command = clearSelectedPoints, font = helv20)
 	close = Button(orderTracerWindow, text = "Close",
 					command = closeTraceWind, font = helv20)
-
+	label_actual_thick = Label(orderTracerWindow,text='Thickness: ',font=helv20)
+	entry_actual_thick = Entry(orderTracerWindow)
 	canvas_up = FigureCanvasTkAgg(fig20, master=orderTracerWindow)
 
 	done_button.grid(row=3, column = 0, sticky = W)
 	clear_button.grid(row=3, column = 1, sticky = W)
 	close.grid(row=3, column = 2, sticky = W)
+	label_actual_thick.grid(row=3,column=3,columnspan=1,sticky=E)
+	entry_actual_thick.grid(row=3,column=4,columnspan=1,sticky=W)
 	canvas_dwn = FigureCanvasTkAgg(fig19, master=orderTracerWindow)
 
 
@@ -1612,8 +1630,12 @@ In the plot corresponding to the vertex, please drag a box
 That includes all the orders of interest. Even though the orders
 may look clearly defined on this plot, it is important to consider
 the slices at the edges. Only choose those that are clearly identified
-in all three of the plots. Other orders can be appended later."""
+in all three of the plots. Other orders can be appended later.
+
+Also, input the thickness of the order."""
 	dialog(message, 'i')
+
+	entry_actual_thick.insert(0,str(actual_thick))
 
 	updateOrderPlot()
 
@@ -1630,9 +1652,9 @@ in all three of the plots. Other orders can be appended later."""
 
 	f= fitReader(z)
 	saveToFile ('fit' ,z)
-	saveToFile ('thick', thick)
+	saveToFile ('thick', actual_thick)
 	saveToFile ('order', location_vertex[0])
-	print location_vertex[0]
+
 	x_new = np.linspace(0,g_length,g_length)
 
 	orderCorrectWin = Tk()
@@ -1697,7 +1719,7 @@ def doneOverscan():
 
 def doneThick():
 	global thick
-	thick=int(entry_thick.get())
+	thick=2*int(np.ceil(float(entry_thick.get())))
 	orderCalibrationWin.quit()
 	orderCalibrationWin.destroy()
 
@@ -1867,9 +1889,9 @@ def biasDarkCalibration ():
 
 	#Add no negative values condition
 
-	saveToFile('bias', medianBias_val)
-	saveToFile('dark', medianDark_val)
-	saveToFile('flat', medianFlats_val)
+	saveToFile('bias.calib', medianBias_val)
+	saveToFile('dark.calib', medianDark_val)
+	saveToFile('flat.calib', medianFlats_val)
 	saveToFile('overscan', meanOverScan_val)
 	saveToFile('overscanloc', [left, right])
 	
@@ -1878,10 +1900,10 @@ def sensitivityCalibration ():
 	global sensitivityWin,flatFieldWin, original_Y, order_start
 	
 	
-	medianBias_val = openNumpyFile('bias')
-	medianDark_val = openNumpyFile('dark')
+	medianBias_val = openNumpyFile('bias.calib')
+	medianDark_val = openNumpyFile('dark.calib')
 	meanOverScan_val = openNumpyFile('overscan.npy')
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 
 	overScan_location = openNumpyFile('overscanloc.npy')
 	order_displace = openNumpyFile("displacement.npy")
@@ -2023,7 +2045,7 @@ def sensitivityCalibration ():
 	flatFieldWin.protocol("WM_DELETE_WINDOW", closeFlatFieldWin)
 	flatFieldWin.mainloop()
 	
-	saveToFile('flatfield', flat_field2)
+	saveToFile('flatfield.calib', flat_field2)
 
 def getMultiFileName (instruction):
 	global file_List, entry, fileBox, isFiles, name, file_Name
@@ -2094,13 +2116,13 @@ def specTracer ():
 	correct = openNumpyFile('correction.npy')
 	thick = openNumpyFile('thick.npy')
 	order_drift = openNumpyFile('drift.npy')
-	bias = openNumpyFile('bias')
-	dark = openNumpyFile('dark')
+	bias = openNumpyFile('bias.calib')
+	dark = openNumpyFile('dark.calib')
 	overScan = openNumpyFile('overscan.npy')
 	overScan_location = openNumpyFile('overscanloc.npy')
-	flatF = openNumpyFile('flatfield')
+	flatF = openNumpyFile('flatfield.calib')
 	order_start = openNumpyFile("order.npy")
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 	
 	maske = ma.getmaskarray(flatF)
 
