@@ -2378,6 +2378,7 @@ def specTracer ():
 	flatWin.protocol("WM_DELETE_WINDOW", closeFlatWin)
 	flatWin.mainloop()
 
+	order = 0
 	spectrumNormalized = np.copy(spectrum[:,0])
 	isCleared = np.zeros((len(displacement)), dtype=bool)
 	jump_Array = np.ones((len(displacement)),dtype=int)*10
