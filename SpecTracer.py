@@ -1466,6 +1466,8 @@ def orderTracer ():
 
 	g_data = forceLandscape(flat_data, isLandscape)
 
+	plt.imshow(g_data)
+	plt.show()
 	g_data = g_data-medianBias_val-meanOverScan_val
 	overScanLeft=overScan_location[0]
 	overScanRight=overScan_location[1]
@@ -1503,7 +1505,7 @@ def orderTracer ():
 
 	done_button = Button(orderCalibrationWin, text = 'Done', command = doneThick)
 	orderCanvas = FigureCanvasTkAgg(fig1, master=orderCalibrationWin)
-	label_thick = Label(orderCalibrationWin,text='First Order At: ',font=helv20)
+	label_thick = Label(orderCalibrationWin,text='First Order From Below At: ',font=helv20)
 	entry_thick = Entry(orderCalibrationWin)
 	
 	done_button.grid(row=3, column = 2, sticky = W)
@@ -1517,8 +1519,8 @@ def orderTracer ():
 	
 	fig1.canvas.draw()
 	
-	message = "Please input the distance from the bottom pixel to the center of the first order at the center of the CCD"
-	dialog(message, 'i')
+	#message = "Please input the distance from the bottom pixel to the center of the first order at the center of the CCD"
+	#dialog(message, 'i')
 
 	
 	orderCalibrationWin.protocol("WM_DELETE_WINDOW", closeOrderCalibWin)
@@ -1763,8 +1765,8 @@ def biasDarkCalibration ():
 		toolbar_frame.grid(row=0, column=0, columnspan =2, sticky = W)
 
 		done_button = Button(overScanWin,text='Done',command=doneOverscan)
-		label_start = Label(overScanWin, text = 'Left Overscan: ', font = helv20)
-		label_end = Label(overScanWin,text='Right Overscan: ',font=helv20)
+		label_start = Label(overScanWin, text = 'Left Overscan End: ', font = helv20)
+		label_end = Label(overScanWin,text='Right Overscan Start: ',font=helv20)
 		
 		entry_start = Entry(overScanWin)
 		entry_end = Entry(overScanWin)
@@ -1784,8 +1786,8 @@ def biasDarkCalibration ():
 		fig3.canvas.draw()
 
 
-		message = "Please input the coordinate where the left overscan ends and the right overscan starts"
-		dialog(message,'i')
+		#message = "Please input the coordinate where the left overscan ends and the right overscan starts"
+		#dialog(message,'i')
 
 		overScanWin.protocol('WM_DELETE_WINDOW', closeOverScanWin)
 		overScanWin.mainloop()
@@ -1844,10 +1846,10 @@ def biasDarkCalibration ():
 	i = 0	
 	while i < len(biases_arr):
 		bias_data[i] = fits.getdata(biases_arr[i])-meanOverScan_val
-		bias_data[:,0:left] = ma.masked
-		bias_data[:,right:length]=ma.masked
-
 		i=i+1
+
+	bias_data[:,:,0:left] = ma.masked
+	bias_data[:,:,right:length]=ma.masked
 	medianBias_val = ma.median(bias_data, 0)
 
 	message = "Are Dark files available?"
@@ -1869,9 +1871,9 @@ def biasDarkCalibration ():
 		i = 0	
 		while i < len(darks_arr):
 			dark_data[i] = fits.getdata(darks_arr[i])-meanOverScan_val-medianBias_val
-			dark_data[:,0:left] = ma.masked
-			dark_data[:,right:length]=ma.masked
 			i=i+1
+		dark_data[:,:,0:left] = ma.masked
+		dark_data[:,:,right:length]=ma.masked
 		medianDark_val = ma.median(dark_data, 0)
 
 	else:
@@ -1881,11 +1883,12 @@ def biasDarkCalibration ():
 	i = 0	
 	while i < len(flats_arr):
 		flats_data[i] = fits.getdata(flats_arr[i])-meanOverScan_val-medianBias_val
-		flats_data[:,0:left] = ma.masked
-		flats_data[:,right:length]=ma.masked
-
 		i=i+1
+	flats_data[:,:,0:left] = ma.masked
+	flats_data[:,:,right:length]=ma.masked
 	medianFlats_val = ma.median(flats_data, 0)
+	plt.imshow(medianBias_val)
+	plt.show()
 
 	#Add no negative values condition
 
@@ -2525,7 +2528,7 @@ def spectrumGraph ():
 
 	overScan_location=openNumpyFile('overscanloc.npy')
 	order_start = openNumpyFile('order.npy')
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 	isLandscape, g_length, g_width = getDimensions (flat_data)
 
 	instruction = "Please type the name of the file, containing the reduced spectrum"
@@ -2576,7 +2579,7 @@ def wavelengthFunctionGen():
 
 	order_start = openNumpyFile("order.npy")
 
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 	isLandscape, g_length, g_width = getDimensions (flat_data)
 	
 	instruction = "Select the file of the reduced spectrum with known wavelengths"
@@ -2696,7 +2699,7 @@ def orderAppend ():
 	global g_data, g_width, isLandscape, g_length, g_orderLoc, g_correction, g_drift, appendWin
 	global fig16, g_multiplier, f, v_pan, h_pan, cid, ax1, z, top, g_displacement, g_slide, canvas, f ,z
 	
-	flat_data = openNumpyFile('flat')
+	flat_data = openNumpyFile('flat.calib')
 
 	g_displacement = openNumpyFile('displacement.npy')
 	z = openNumpyFile('fit.npy')
@@ -2847,7 +2850,7 @@ def orderModify ():
 
 	isFiles = False
 	
-	flat_data=openNumpyFile('flat')
+	flat_data=openNumpyFile('flat.calib')
 
 	data = fits.getdata(nameFile_orderCalib)
 	isLandscape, g_length, g_width= getDimensions (flat_data)
