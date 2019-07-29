@@ -1466,8 +1466,6 @@ def orderTracer ():
 
 	g_data = forceLandscape(flat_data, isLandscape)
 
-	plt.imshow(g_data)
-	plt.show()
 	g_data = g_data-medianBias_val-meanOverScan_val
 	overScanLeft=overScan_location[0]
 	overScanRight=overScan_location[1]
