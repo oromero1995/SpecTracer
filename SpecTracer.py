@@ -1887,9 +1887,7 @@ def biasDarkCalibration ():
 	flats_data[:,:,0:left] = ma.masked
 	flats_data[:,:,right:length]=ma.masked
 	medianFlats_val = ma.median(flats_data, 0)
-	plt.imshow(medianBias_val)
-	plt.show()
-
+	
 	#Add no negative values condition
 
 	saveToFile('bias.calib', medianBias_val)
